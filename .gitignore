@@ -1,0 +1,5 @@
+pt-dump-rust-lib/target
+pt-dump-rust-lib/Cargo.lock
+.gdb_history
+*.profdata
+*.profraw
