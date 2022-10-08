@@ -32,8 +32,11 @@ impl SearchResult {
 
 pub fn search_memory_generic<RangeType: GenericPageRange>(needle: &[u8], ranges: &Vec<RangeType>, memory_view: &mut dyn MemoryView, max_num_occurrences: usize) -> SearchResult {
     let mut result = SearchResult::new();
+    if max_num_occurrences == 0 {
+        return result;
+    }
     let mut num_found = 0;
-    for (range_index, range) in ranges.iter().enumerate() {
+    'done: for (range_index, range) in ranges.iter().enumerate() {
         let mut va_off = 0;
         for phys_range in range.get_phys_ranges().iter() {
             let block = memory_view.read_block(phys_range.phys_base as usize, phys_range.phys_extent as usize);
@@ -44,14 +47,11 @@ pub fn search_memory_generic<RangeType: GenericPageRange>(needle: &[u8], ranges:
                     result.add_result(range_index, va_addr);
                     num_found += 1;
                     if num_found >= max_num_occurrences {
-                        break;
+                        break 'done;
                     }
                 }
             }
             va_off += phys_range.phys_extent;
-        }
-        if num_found >= max_num_occurrences {
-            break;
         }
     }
     result

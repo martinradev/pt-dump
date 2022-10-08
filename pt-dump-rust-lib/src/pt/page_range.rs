@@ -48,7 +48,6 @@ impl GenericPageRange for x86::X86PageRange {
 }
 
 impl GenericPageRange for arm::ArmPageRange {
-
     fn get_phys_ranges(&self) -> &Vec<common::PhysRange> {
         unimplemented!()
     }
