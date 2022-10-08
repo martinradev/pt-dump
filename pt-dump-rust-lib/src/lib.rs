@@ -1,7 +1,7 @@
-pub mod memory;
-pub mod pt;
 pub mod filter;
-pub mod search;
+pub mod memory;
 pub mod print;
+pub mod pt;
+pub mod search;
 
 mod tests;

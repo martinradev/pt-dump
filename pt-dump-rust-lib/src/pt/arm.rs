@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 
-use crate::pt::common::{Error, PhysRange};
 use crate::memory::memory::MemoryView;
+use crate::pt::common::{Error, PhysRange};
 
 #[derive(Copy, Clone)]
 pub enum Granularity {
@@ -294,7 +294,10 @@ fn parse_arm64(
         arm_page_entries.push(ArmPageRange {
             va: mapping_entry.va,
             extent: mapping_entry.extent,
-            phys_ranges: vec![PhysRange::new(mapping_entry.base_address, mapping_entry.extent)],
+            phys_ranges: vec![PhysRange::new(
+                mapping_entry.base_address,
+                mapping_entry.extent,
+            )],
             xn: mapping_entry.xn,
             pxn: mapping_entry.pxn,
             permission_bits: mapping_entry.permission_bits,

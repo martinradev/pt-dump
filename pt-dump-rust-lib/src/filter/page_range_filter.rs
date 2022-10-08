@@ -17,7 +17,7 @@ impl PageRangeFilterX86 {
             user_accessible: None,
             superuser_accessible: None,
             has_address: None,
-            va_range: None
+            va_range: None,
         }
     }
 
@@ -70,7 +70,10 @@ impl PageRangeFilterX86 {
     }
 }
 
-pub fn filter_x86_ranges(ranges: &Vec<X86PageRange>, filter: &PageRangeFilterX86) -> Vec<X86PageRange> {
+pub fn filter_x86_ranges(
+    ranges: &Vec<X86PageRange>,
+    filter: &PageRangeFilterX86,
+) -> Vec<X86PageRange> {
     let mut filtered_ranges = vec![];
     let w_opt = filter.get_writeable();
     let x_opt = filter.get_executable();
@@ -79,10 +82,7 @@ pub fn filter_x86_ranges(ranges: &Vec<X86PageRange>, filter: &PageRangeFilterX86
     let has_addr_opt = filter.get_has_address();
     let va_range_opt = filter.get_va_range();
     let (va_begin, va_end) = if let Some(va_range) = va_range_opt {
-        (
-            va_range.0.unwrap_or(0_u64),
-            va_range.1.unwrap_or(u64::MAX),
-        )
+        (va_range.0.unwrap_or(0_u64), va_range.1.unwrap_or(u64::MAX))
     } else {
         (0_u64, u64::MAX)
     };

@@ -1,4 +1,4 @@
 pub mod arm;
 pub mod common;
-pub mod x86;
 pub mod page_range;
+pub mod x86;

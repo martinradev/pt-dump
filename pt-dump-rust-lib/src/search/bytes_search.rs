@@ -1,5 +1,5 @@
-use crate::pt::page_range::GenericPageRange;
 use crate::memory::memory::MemoryView;
+use crate::pt::page_range::GenericPageRange;
 use memchr::memmem;
 
 pub struct SearchResultOccurrence {
@@ -8,20 +8,20 @@ pub struct SearchResultOccurrence {
 }
 
 pub struct SearchResult {
-    occurrences: Vec<SearchResultOccurrence>
+    occurrences: Vec<SearchResultOccurrence>,
 }
 
 impl SearchResult {
     fn new() -> Self {
         Self {
-            occurrences: vec![]
+            occurrences: vec![],
         }
     }
 
     fn add_result(&mut self, range_index: usize, va_addr: u64) {
         self.occurrences.push(SearchResultOccurrence {
             va: va_addr,
-            range_index: range_index
+            range_index: range_index,
         })
     }
 
@@ -30,7 +30,12 @@ impl SearchResult {
     }
 }
 
-pub fn search_memory_generic<RangeType: GenericPageRange>(needle: &[u8], ranges: &Vec<RangeType>, memory_view: &mut dyn MemoryView, max_num_occurrences: usize) -> SearchResult {
+pub fn search_memory_generic<RangeType: GenericPageRange>(
+    needle: &[u8],
+    ranges: &Vec<RangeType>,
+    memory_view: &mut dyn MemoryView,
+    max_num_occurrences: usize,
+) -> SearchResult {
     let mut result = SearchResult::new();
     if max_num_occurrences == 0 {
         return result;
@@ -39,7 +44,10 @@ pub fn search_memory_generic<RangeType: GenericPageRange>(needle: &[u8], ranges:
     'done: for (range_index, range) in ranges.iter().enumerate() {
         let mut va_off = 0;
         for phys_range in range.get_phys_ranges().iter() {
-            let block = memory_view.read_block(phys_range.phys_base as usize, phys_range.phys_extent as usize);
+            let block = memory_view.read_block(
+                phys_range.phys_base as usize,
+                phys_range.phys_extent as usize,
+            );
             if let Ok(block_ok) = block {
                 let it = memmem::find_iter(&block_ok[..], &needle);
                 for found_offset in it {

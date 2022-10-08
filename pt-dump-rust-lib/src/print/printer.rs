@@ -15,24 +15,28 @@ pub struct X86Writer {
 }
 
 impl ToString for X86PageRange {
-fn to_string(&self) -> String {
-    let attr = self.get_attributes();
-    let color = match (!attr.nx, attr.writeable) {
-        (true, true) => Color::Blue,
-        (false, true) => Color::Green,
-        (true, false) => Color::Red,
-        _ => Color::Black,
-    };
-    let s = format!(
-        "{va:>#21x} : {len:>#14x} : W:{w} X:{x} U:{u}",
-        va = self.get_va(),
-        len = self.get_extent(),
-        w = attr.writeable as u8,
-        x = !attr.nx as u8,
-        u = attr.user as u8
-    );
-    format!("{}{}", &s.on_color(color).to_string(), " ".on_black().to_string())
-}
+    fn to_string(&self) -> String {
+        let attr = self.get_attributes();
+        let color = match (!attr.nx, attr.writeable) {
+            (true, true) => Color::Blue,
+            (false, true) => Color::Green,
+            (true, false) => Color::Red,
+            _ => Color::Black,
+        };
+        let s = format!(
+            "{va:>#21x} : {len:>#14x} : W:{w} X:{x} U:{u}",
+            va = self.get_va(),
+            len = self.get_extent(),
+            w = attr.writeable as u8,
+            x = !attr.nx as u8,
+            u = attr.user as u8
+        );
+        format!(
+            "{}{}",
+            &s.on_color(color).to_string(),
+            " ".on_black().to_string()
+        )
+    }
 }
 
 impl X86Writer {
@@ -73,7 +77,7 @@ impl Printer<X86PageRange> for X86Writer {
 }
 
 impl ToString for ArmPageRange {
-fn to_string(&self) -> String {
-    unimplemented!()
-}
+    fn to_string(&self) -> String {
+        unimplemented!()
+    }
 }

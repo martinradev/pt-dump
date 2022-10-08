@@ -1,21 +1,20 @@
-use crate::pt::x86;
 use crate::pt::arm;
 use crate::pt::common;
+use crate::pt::x86;
 
 pub trait GenericPage {
     fn get_va(&self) -> u64;
 }
 
-
 impl GenericPage for x86::X86PageRange {
     fn get_va(&self) -> u64 {
-        return self.get_va()
+        return self.get_va();
     }
 }
 
 impl GenericPage for arm::ArmPageRange {
     fn get_va(&self) -> u64 {
-        return self.va; 
+        return self.va;
     }
 }
 

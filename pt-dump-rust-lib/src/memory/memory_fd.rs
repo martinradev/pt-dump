@@ -20,7 +20,12 @@ impl MemoryView for MemoryViewFd {
         read_block_from_fd(self.fd, self.gva_base + offset, block_size)
     }
 
-    fn read_block_inplace(&mut self, offset: usize, block_size: usize, block: &mut [u8]) -> Result<(), Error> {
+    fn read_block_inplace(
+        &mut self,
+        offset: usize,
+        block_size: usize,
+        block: &mut [u8],
+    ) -> Result<(), Error> {
         read_inline_block_from_fd(self.fd, self.gva_base + offset, block_size, block)
     }
 }
@@ -59,7 +64,12 @@ pub fn read_block_from_fd(fd: i32, offset: usize, block_size: usize) -> Result<V
     return_value
 }
 
-pub fn read_inline_block_from_fd(fd: i32, offset: usize, block_size: usize, block: &mut [u8]) -> Result<(), Error> {
+pub fn read_inline_block_from_fd(
+    fd: i32,
+    offset: usize,
+    block_size: usize,
+    block: &mut [u8],
+) -> Result<(), Error> {
     let result = unsafe {
         nc::pread64(
             fd,

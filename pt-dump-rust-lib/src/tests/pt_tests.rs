@@ -7,10 +7,7 @@ use crate::{
     tests::common::*,
 };
 
-pub fn compare_page_vectors(
-    expected: &Vec<X86PageRange>,
-    actual: &Vec<X86PageRange>,
-) {
+pub fn compare_page_vectors(expected: &Vec<X86PageRange>, actual: &Vec<X86PageRange>) {
     assert_eq!(expected.len(), actual.len());
     for (a, b) in expected.iter().zip(actual.iter()) {
         if a != b {
@@ -19,14 +16,7 @@ pub fn compare_page_vectors(
     }
 }
 
-pub fn create_page(
-    w: bool,
-    u: bool,
-    nx: bool,
-    va: u64,
-    phys: u64,
-    extent: u64,
-) -> X86PageRange {
+pub fn create_page(w: bool, u: bool, nx: bool, va: u64, phys: u64, extent: u64) -> X86PageRange {
     X86PageRange {
         attributes: PageAttributes {
             writeable: w,
@@ -55,8 +45,7 @@ fn test_pt_x86_single_page() {
     let mut memory_view = MemoryViewFromArray::from(&mem_as_u8);
     let cr3 = 0u64;
     let result =
-        x86::collect_pages(x86::X86Flavour::X86, &mut memory_view, cr3, false, false)
-            .unwrap();
+        x86::collect_pages(x86::X86Flavour::X86, &mut memory_view, cr3, false, false).unwrap();
     assert_eq!(
         vec![create_page(false, false, false, 0, 0x2000, 0x1000)],
         result
@@ -74,8 +63,7 @@ fn test_pt_x86_multiple_pages() {
     let mut memory_view = MemoryViewFromArray::from(&mem_as_u8);
     let cr3 = 0u64;
     let result =
-        x86::collect_pages(x86::X86Flavour::X86, &mut memory_view, cr3, false, false)
-            .unwrap();
+        x86::collect_pages(x86::X86Flavour::X86, &mut memory_view, cr3, false, false).unwrap();
     println!("{:?}", result);
     compare_page_vectors(
         &vec![
@@ -103,8 +91,7 @@ fn test_pt_x86_pde_pdpe() {
     let mut memory_view = MemoryViewFromArray::from(&mem_as_u8);
     let cr3 = 0u64;
     let result =
-        x86::collect_pages(x86::X86Flavour::X86, &mut memory_view, cr3, true, false)
-            .unwrap();
+        x86::collect_pages(x86::X86Flavour::X86, &mut memory_view, cr3, true, false).unwrap();
     compare_page_vectors(
         &vec![
             create_page(false, false, false, 0, 4 * 1024 * 1024, 0x1000),
@@ -119,8 +106,7 @@ fn test_pt_x86_pde_pdpe() {
         ],
         &result,
     );
-    let result =
-        x86::collect_pages(x86::X86Flavour::X86, &mut memory_view, cr3, false, false);
+    let result = x86::collect_pages(x86::X86Flavour::X86, &mut memory_view, cr3, false, false);
     match result {
         Err(e) => {
             println!("Got error: {:?}", e);
@@ -156,8 +142,7 @@ fn test_pt_x86_all_attributes() {
     let mut memory_view = MemoryViewFromArray::from(&mem_as_u8);
     let cr3 = 0u64;
     let result =
-        x86::collect_pages(x86::X86Flavour::X86, &mut memory_view, cr3, false, false)
-            .unwrap();
+        x86::collect_pages(x86::X86Flavour::X86, &mut memory_view, cr3, false, false).unwrap();
     compare_page_vectors(
         &vec![
             X86PageRange {
@@ -370,8 +355,7 @@ fn test_pt_x86_pae() {
     let mem_as_u8 = mem.as_byte_slice();
     let mut memory_view = MemoryViewFromArray::from(&mem_as_u8);
     let cr3 = 0u64;
-    let result =
-        x86::collect_pages(X86Flavour::X86, &mut memory_view, cr3, false, true).unwrap();
+    let result = x86::collect_pages(X86Flavour::X86, &mut memory_view, cr3, false, true).unwrap();
     compare_page_vectors(
         &vec![
             create_page(false, false, false, 0, 2 * 1024 * 1024 * 1024, 0x200000), // 2MiB
@@ -398,8 +382,8 @@ fn test_pt_x86_pae() {
 }
 
 /*
-    * Test XN bit with PAE
-    */
+ * Test XN bit with PAE
+ */
 #[test]
 fn test_pt_x86_xn() {
     let mut mem = [0u64; 1024 * 16]; // 16 physical pages
@@ -413,8 +397,7 @@ fn test_pt_x86_xn() {
     let mut memory_view = MemoryViewFromArray::from(&mem_as_u8);
     let cr3 = 0u64;
     let result =
-        x86::collect_pages(x86::X86Flavour::X86, &mut memory_view, cr3, true, true)
-            .unwrap();
+        x86::collect_pages(x86::X86Flavour::X86, &mut memory_view, cr3, true, true).unwrap();
     assert_eq!(
         [false, true, true, true],
         [
@@ -437,8 +420,7 @@ fn test_pt_x64_single_page() {
     let mut memory_view = MemoryViewFromArray::from(&mem_as_u8);
     let cr3 = 0u64;
     let result =
-        x86::collect_pages(x86::X86Flavour::X64, &mut memory_view, cr3, false, false)
-            .unwrap();
+        x86::collect_pages(x86::X86Flavour::X64, &mut memory_view, cr3, false, false).unwrap();
     assert_eq!(
         vec![create_page(false, false, false, 0, 0x4000, 0x1000)],
         result
@@ -458,8 +440,7 @@ fn test_pt_x64_xn() {
     let mut memory_view = MemoryViewFromArray::from(&mem_as_u8);
     let cr3 = 0u64;
     let result =
-        x86::collect_pages(x86::X86Flavour::X64, &mut memory_view, cr3, true, true)
-            .unwrap();
+        x86::collect_pages(x86::X86Flavour::X64, &mut memory_view, cr3, true, true).unwrap();
     assert_eq!(
         [true, true, true],
         [
@@ -482,9 +463,7 @@ fn test_pt_x64_pse() {
         let mem_as_u8 = mem.as_byte_slice();
         let mut memory_view = MemoryViewFromArray::from(&mem_as_u8);
         let cr3 = 0u64;
-        let result =
-            x86::collect_pages(X86Flavour::X64, &mut memory_view, cr3, pse, pae)
-                .unwrap();
+        let result = x86::collect_pages(X86Flavour::X64, &mut memory_view, cr3, pse, pae).unwrap();
         compare_page_vectors(
             &vec![
                 create_page(
@@ -523,8 +502,7 @@ fn test_pt_x64_invalid_pages() {
     let mut memory_view = MemoryViewFromArray::from(&mem_as_u8);
     let cr3 = 0u64;
     let result =
-        x86::collect_pages(x86::X86Flavour::X64, &mut memory_view, cr3, false, false)
-            .unwrap();
+        x86::collect_pages(x86::X86Flavour::X64, &mut memory_view, cr3, false, false).unwrap();
     assert_eq!(
         vec![create_page(false, false, false, 0, 0x4000, 0x1000)],
         result
@@ -541,7 +519,6 @@ fn test_pt_x64_canonical_address() {
     let mut memory_view = MemoryViewFromArray::from(&mem_as_u8);
     let cr3 = 0u64;
     let result =
-        x86::collect_pages(x86::X86Flavour::X64, &mut memory_view, cr3, true, true)
-            .unwrap();
+        x86::collect_pages(x86::X86Flavour::X64, &mut memory_view, cr3, true, true).unwrap();
     assert_eq!(0xffff810000000_000, result[0].get_va());
 }

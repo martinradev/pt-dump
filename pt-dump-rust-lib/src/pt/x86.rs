@@ -1,5 +1,5 @@
-use crate::pt::common::{Error, PhysRange};
 use crate::memory::memory;
+use crate::pt::common::{Error, PhysRange};
 
 struct X86Context {
     flavour: X86Flavour,
@@ -69,13 +69,12 @@ pub struct X86PageRange {
 }
 
 impl X86PageRange {
-
     pub fn new(va: u64, extent: u64, attr: PageAttributes, ranges: Vec<PhysRange>) -> Self {
         Self {
             va: va,
             extent: extent,
             attributes: attr,
-            phys_ranges: ranges
+            phys_ranges: ranges,
         }
     }
 
