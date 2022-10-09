@@ -34,12 +34,14 @@ pub fn search_memory_generic<RangeType: GenericPageRange>(
     needle: &[u8],
     ranges: &Vec<RangeType>,
     memory_view: &mut dyn MemoryView,
+    alignment: Option<u64>,
     max_num_occurrences: usize,
 ) -> SearchResult {
     let mut result = SearchResult::new();
     if max_num_occurrences == 0 {
         return result;
     }
+    let alignment = if let Some(a) = alignment { a } else { 1 };
     let mut num_found = 0;
     'done: for (range_index, range) in ranges.iter().enumerate() {
         let mut va_off = 0;
@@ -52,6 +54,9 @@ pub fn search_memory_generic<RangeType: GenericPageRange>(
                 let it = memmem::find_iter(&block_ok[..], &needle);
                 for found_offset in it {
                     let va_addr = range.get_va_start() + (found_offset as u64) + va_off;
+                    if va_addr % alignment != 0 {
+                        continue;
+                    }
                     result.add_result(range_index, va_addr);
                     num_found += 1;
                     if num_found >= max_num_occurrences {

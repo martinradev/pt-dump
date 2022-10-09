@@ -36,7 +36,7 @@ fn search_for_bytes_identity_mapping() {
     copy_needle_to(1024 - needle.len());
     let mem_as_u8 = mem.as_byte_slice();
     let mut memory_view = MemoryViewFromArray::from(&mem_as_u8);
-    let result = search_memory_generic(&needle, &ranges, &mut memory_view, 100);
+    let result = search_memory_generic(&needle, &ranges, &mut memory_view, None, 100);
     assert_eq!(
         vec![0, 10, 1024 - needle.len() as u64],
         result
@@ -54,7 +54,7 @@ fn search_for_bytes_identity_mapping() {
             .collect::<Vec<usize>>()
     );
 
-    let result = search_memory_generic(&needle, &ranges, &mut memory_view, 3);
+    let result = search_memory_generic(&needle, &ranges, &mut memory_view, None, 3);
     assert_eq!(
         vec![0, 10, 1024 - needle.len() as u64],
         result
@@ -64,7 +64,7 @@ fn search_for_bytes_identity_mapping() {
             .collect::<Vec<u64>>()
     );
 
-    let result = search_memory_generic(&needle, &ranges, &mut memory_view, 2);
+    let result = search_memory_generic(&needle, &ranges, &mut memory_view, None, 2);
     assert_eq!(
         vec![0, 10],
         result
@@ -74,7 +74,7 @@ fn search_for_bytes_identity_mapping() {
             .collect::<Vec<u64>>()
     );
 
-    let result = search_memory_generic(&needle, &ranges, &mut memory_view, 1);
+    let result = search_memory_generic(&needle, &ranges, &mut memory_view, None, 1);
     assert_eq!(
         vec![0],
         result
@@ -84,7 +84,7 @@ fn search_for_bytes_identity_mapping() {
             .collect::<Vec<u64>>()
     );
 
-    let result = search_memory_generic(&needle, &ranges, &mut memory_view, 0);
+    let result = search_memory_generic(&needle, &ranges, &mut memory_view, None, 0);
     assert_eq!(
         Vec::<u64>::new(),
         result
@@ -95,7 +95,7 @@ fn search_for_bytes_identity_mapping() {
     );
 
     let needle = "KeyWor".as_byte_slice();
-    let result = search_memory_generic(&needle, &ranges, &mut memory_view, 100);
+    let result = search_memory_generic(&needle, &ranges, &mut memory_view, None, 100);
     assert_eq!(
         vec![0, 10, 1023 - needle.len() as u64],
         result
@@ -114,7 +114,7 @@ fn search_for_bytes_identity_mapping() {
     );
 
     let needle = "KeyWord!".as_byte_slice();
-    let result = search_memory_generic(&needle, &ranges, &mut memory_view, 100);
+    let result = search_memory_generic(&needle, &ranges, &mut memory_view, None, 100);
     assert_eq!(
         Vec::<u64>::new(),
         result
@@ -176,7 +176,7 @@ fn search_for_bytes_identity_non_identity() {
     copy_needle_to(0x9400);
     let mem_as_u8 = mem.as_byte_slice();
     let mut memory_view = MemoryViewFromArray::from(&mem_as_u8);
-    let result = search_memory_generic(&needle, &ranges, &mut memory_view, 100);
+    let result = search_memory_generic(&needle, &ranges, &mut memory_view, None, 100);
     assert_eq!(
         vec![0xa00000, 0xa00f00, 0xa01500, 0xb00400],
         result
@@ -194,7 +194,7 @@ fn search_for_bytes_identity_non_identity() {
             .collect::<Vec<usize>>()
     );
 
-    let result = search_memory_generic(&needle, &ranges, &mut memory_view, 3);
+    let result = search_memory_generic(&needle, &ranges, &mut memory_view, None, 3);
     assert_eq!(
         vec![0xa00000, 0xa00f00, 0xa01500],
         result
@@ -204,7 +204,7 @@ fn search_for_bytes_identity_non_identity() {
             .collect::<Vec<u64>>()
     );
 
-    let result = search_memory_generic(&needle, &ranges, &mut memory_view, 2);
+    let result = search_memory_generic(&needle, &ranges, &mut memory_view, None, 2);
     assert_eq!(
         vec![0xa00000, 0xa00f00],
         result
@@ -214,9 +214,84 @@ fn search_for_bytes_identity_non_identity() {
             .collect::<Vec<u64>>()
     );
 
-    let result = search_memory_generic(&needle, &ranges, &mut memory_view, 1);
+    let result = search_memory_generic(&needle, &ranges, &mut memory_view, None, 1);
     assert_eq!(
         vec![0xa00000],
+        result
+            .get_results()
+            .iter()
+            .map(|x| x.va)
+            .collect::<Vec<u64>>()
+    );
+}
+
+#[test]
+fn search_for_bytes_aligned() {
+    use crate::search::bytes_search::search_memory_generic;
+
+    let attr = PageAttributes {
+        accessed: false,
+        dirty: false,
+        writeable: false,
+        user: false,
+        pwt: false,
+        pcd: false,
+        pat: false,
+        global: false,
+        nx: true,
+    };
+
+    let mut mem = vec![0u8; 0x10000];
+    let ranges = vec![X86PageRange::new(
+        0,
+        mem.len() as u64,
+        attr.clone(),
+        vec![PhysRange::new(0, mem.len() as u64)],
+    )];
+
+    let needle = "KeyWord".as_byte_slice();
+    let mut copy_needle_to = |off| mem[off..off + needle.len()].copy_from_slice(&needle);
+    copy_needle_to(4);
+    copy_needle_to(20);
+    copy_needle_to(133);
+    copy_needle_to(512);
+    copy_needle_to(1024);
+    let mem_as_u8 = mem.as_byte_slice();
+    let mut memory_view = MemoryViewFromArray::from(&mem_as_u8);
+
+    let result = search_memory_generic(&needle, &ranges, &mut memory_view, Some(1), 100);
+    assert_eq!(
+        vec![4, 20, 133, 512, 1024],
+        result
+            .get_results()
+            .iter()
+            .map(|x| x.va)
+            .collect::<Vec<u64>>()
+    );
+
+    let result = search_memory_generic(&needle, &ranges, &mut memory_view, Some(2), 100);
+    assert_eq!(
+        vec![4, 20, 512, 1024],
+        result
+            .get_results()
+            .iter()
+            .map(|x| x.va)
+            .collect::<Vec<u64>>()
+    );
+
+    let result = search_memory_generic(&needle, &ranges, &mut memory_view, Some(20), 100);
+    assert_eq!(
+        vec![20],
+        result
+            .get_results()
+            .iter()
+            .map(|x| x.va)
+            .collect::<Vec<u64>>()
+    );
+
+    let result = search_memory_generic(&needle, &ranges, &mut memory_view, Some(4), 100);
+    assert_eq!(
+        vec![4, 20, 512, 1024],
         result
             .get_results()
             .iter()
