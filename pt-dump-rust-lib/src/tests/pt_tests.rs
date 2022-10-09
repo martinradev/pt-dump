@@ -538,12 +538,7 @@ fn test_pt_gva_to_gpa() {
     };
 
     // Identity map, single range
-    let range = X86PageRange::new(
-        0,
-        0x10000,
-        attr.clone(),
-        vec![PhysRange::new(0, 0x10000)],
-    );
+    let range = X86PageRange::new(0, 0x10000, attr.clone(), vec![PhysRange::new(0, 0x10000)]);
     assert_eq!(Some(0x1000), range.gva_to_gpa(0x1000));
     assert_eq!(Some(0xffff), range.gva_to_gpa(0xffff));
 
@@ -551,7 +546,10 @@ fn test_pt_gva_to_gpa() {
         0x8000,
         0x2000,
         attr.clone(),
-        vec![PhysRange::new(0x8000, 0x1000), PhysRange::new(0x9000, 0x1000)],
+        vec![
+            PhysRange::new(0x8000, 0x1000),
+            PhysRange::new(0x9000, 0x1000),
+        ],
     );
     assert_eq!(Some(0x8500), range.gva_to_gpa(0x8500));
     assert_eq!(Some(0x9400), range.gva_to_gpa(0x9400));
@@ -560,7 +558,11 @@ fn test_pt_gva_to_gpa() {
         0x100000,
         0x3000,
         attr.clone(),
-        vec![PhysRange::new(0xa000, 0x1000), PhysRange::new(0x133000, 0x1000), PhysRange::new(0x4000, 0x1000)],
+        vec![
+            PhysRange::new(0xa000, 0x1000),
+            PhysRange::new(0x133000, 0x1000),
+            PhysRange::new(0x4000, 0x1000),
+        ],
     );
     assert_eq!(Some(0xa000), range.gva_to_gpa(0x100000));
     assert_eq!(Some(0xa700), range.gva_to_gpa(0x100700));
