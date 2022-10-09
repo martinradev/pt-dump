@@ -78,6 +78,20 @@ impl X86PageRange {
         }
     }
 
+    pub fn gva_to_gpa(&self, gva: u64) -> Option<u64> {
+        if gva < self.va {
+            return None;
+        }
+        let mut remaining_off = gva - self.va;
+        for phys_range in self.phys_ranges.iter() {
+            if phys_range.phys_extent > remaining_off {
+                return Some(phys_range.phys_base + remaining_off);
+            }
+            remaining_off -= phys_range.phys_extent;
+        }
+        None
+    }
+
     pub fn get_va(&self) -> u64 {
         self.va
     }

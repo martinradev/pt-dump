@@ -522,3 +522,48 @@ fn test_pt_x64_canonical_address() {
         x86::collect_pages(x86::X86Flavour::X64, &mut memory_view, cr3, true, true).unwrap();
     assert_eq!(0xffff810000000_000, result[0].get_va());
 }
+
+#[test]
+fn test_pt_gva_to_gpa() {
+    let attr = PageAttributes {
+        accessed: false,
+        dirty: false,
+        writeable: false,
+        user: false,
+        pwt: false,
+        pcd: false,
+        pat: false,
+        global: false,
+        nx: true,
+    };
+
+    // Identity map, single range
+    let range = X86PageRange::new(
+        0,
+        0x10000,
+        attr.clone(),
+        vec![PhysRange::new(0, 0x10000)],
+    );
+    assert_eq!(Some(0x1000), range.gva_to_gpa(0x1000));
+    assert_eq!(Some(0xffff), range.gva_to_gpa(0xffff));
+
+    let range = X86PageRange::new(
+        0x8000,
+        0x2000,
+        attr.clone(),
+        vec![PhysRange::new(0x8000, 0x1000), PhysRange::new(0x9000, 0x1000)],
+    );
+    assert_eq!(Some(0x8500), range.gva_to_gpa(0x8500));
+    assert_eq!(Some(0x9400), range.gva_to_gpa(0x9400));
+
+    let range = X86PageRange::new(
+        0x100000,
+        0x3000,
+        attr.clone(),
+        vec![PhysRange::new(0xa000, 0x1000), PhysRange::new(0x133000, 0x1000), PhysRange::new(0x4000, 0x1000)],
+    );
+    assert_eq!(Some(0xa000), range.gva_to_gpa(0x100000));
+    assert_eq!(Some(0xa700), range.gva_to_gpa(0x100700));
+    assert_eq!(Some(0x133200), range.gva_to_gpa(0x101200));
+    assert_eq!(Some(0x4999), range.gva_to_gpa(0x102999));
+}
