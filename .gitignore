@@ -1,7 +1,7 @@
-pt-dump-rust-lib/target
-pt-dump-rust-lib/Cargo.lock
-gdb-pt-dump-rust-py-interface/target
-gdb-pt-dump-rust-py-interface/Cargo.lock
+pt_dump_lib/target
+pt_dump_lib/Cargo.lock
+pt_dump_py/target
+py_dump_py/Cargo.lock
 .gdb_history
 *.profdata
 *.profraw

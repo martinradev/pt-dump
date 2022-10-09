@@ -1,15 +1,15 @@
 [package]
-name = "gdb-pt-dump-rust-py-interface"
+name = "pt_dump_py"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
-name = "gdb_pt_dump_rust_py_interface"
+name = "pt_dump_py"
 crate-type = ["cdylib"]
 
 [dependencies]
 pyo3 = { version = "0.16.5", features = ["extension-module"] }
 nc = { version = "0.8.5" }
-pt-dump-lib = { path = "../pt-dump-rust-lib", version = "0.1.0" }
+pt_dump_lib = { path = "../pt_dump_lib", version = "0.1.0" }
 lru = "0.8.0"
