@@ -4,7 +4,7 @@
 
 Among the supported features include:
 
-* Parsing a page table at a given address for X86-64, X86-32, Aarch64, RV64
+* Parsing a page table at a given address for X86-64, X86-32, Aarch64 (WIP), RV64 (WIP)
 * Memory searching based on page table contents
 * Filtering pages based on page attributes
 
