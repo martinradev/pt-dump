@@ -3,7 +3,7 @@ use std::sync::Arc;
 use pt_dump_lib::filter::page_range_filter;
 use pt_dump_lib::filter::page_range_filter::PageRangeFilterX86;
 use pt_dump_lib::memory::memory::MemoryView;
-use pt_dump_lib::print::printer::{Printer, X86Writer};
+use pt_dump_lib::print::printer::{Aarch64Writer, Printer, X86Writer};
 use pt_dump_lib::pt::arm;
 use pt_dump_lib::pt::arm::ArmPageRange;
 use pt_dump_lib::pt::page_range::*;
@@ -82,8 +82,16 @@ impl PageTable<ArmPageRange> for PageTableAarch64 {
 }
 
 #[pyfunction]
-fn get_page_table_as_string(table: &PageTableX86) -> String {
+fn get_page_table_as_string_x86(table: &PageTableX86) -> String {
     let mut writer = X86Writer::new();
+    writer.write_ranges(&table.get_ranges());
+    let result = writer.get_result();
+    result.clone()
+}
+
+#[pyfunction]
+fn get_page_table_as_string_aarch64(table: &PageTableAarch64) -> String {
+    let mut writer = Aarch64Writer::new();
     writer.write_ranges(&table.get_ranges());
     let result = writer.get_result();
     result.clone()
@@ -164,14 +172,31 @@ fn parse_page_table_x86_64(
     }
 }
 
+fn granule_size_to_granule(size: u64) -> arm::Granularity {
+    match size {
+        0x1000 => arm::Granularity::Pt4k,
+        0x4000 => arm::Granularity::Pt16k,
+        0x10000 => arm::Granularity::Pt64k,
+        _ => unreachable!(),
+    }
+}
+
 #[pyfunction]
 fn parse_page_table_aarch64(
     fd: i32,
     pt_pa: u64,
+    address_space_size: u8,
+    granule_size: u64,
+    top_bit: u8,
     phys_ranges: &PyList,
 ) -> PyResult<PageTableAarch64> {
     let mut memory_view = create_memory_view(fd, &phys_ranges)?;
-    let arm_context = arm::ArmContext::new(arm::ArmFlavour::Arm64, arm::Granularity::Pt4k, 0, 0);
+    let arm_context = arm::ArmContext::new(
+        arm::ArmFlavour::Arm64,
+        granule_size_to_granule(granule_size),
+        address_space_size,
+        top_bit,
+    );
     let pages = arm::collect_pages(&arm_context, &mut memory_view, pt_pa);
     if let Ok(pages_ok) = pages {
         Ok(PageTableAarch64::new(
@@ -180,6 +205,53 @@ fn parse_page_table_aarch64(
         ))
     } else {
         return Err(PyTypeError::new_err("Failed to collect pages"));
+    }
+}
+
+#[pyfunction]
+fn parse_page_tabls_user_and_kernel_aarch64(
+    fd: i32,
+    ttbr0_pa: u64,
+    ttbr1_pa: u64,
+    address_space_t0_size: u8,
+    address_space_t1_size: u8,
+    t0_granule_size: u64,
+    t1_granule_size: u64,
+    phys_ranges: &PyList,
+) -> PyResult<PageTableAarch64> {
+    let mut memory_view = create_memory_view(fd, &phys_ranges)?;
+    let pages_0 = {
+        let arm_context = arm::ArmContext::new(
+            arm::ArmFlavour::Arm64,
+            granule_size_to_granule(t0_granule_size),
+            address_space_t0_size,
+            0,
+        );
+        arm::collect_pages(&arm_context, &mut memory_view, ttbr0_pa)
+    };
+    let pages_1 = {
+        let arm_context = arm::ArmContext::new(
+            arm::ArmFlavour::Arm64,
+            granule_size_to_granule(t1_granule_size),
+            address_space_t1_size,
+            1,
+        );
+        arm::collect_pages(&arm_context, &mut memory_view, ttbr1_pa)
+    };
+    let mut all_pages = Vec::new();
+    if let Ok(pages_ok) = pages_0 {
+        all_pages.extend(pages_ok);
+    }
+    if let Ok(pages_ok) = pages_1 {
+        all_pages.extend(pages_ok);
+    }
+    if all_pages.is_empty() {
+        return Err(PyTypeError::new_err("Failed to collect pages"));
+    } else {
+        return Ok(PageTableAarch64::new(
+            pages_to_ranges(&all_pages),
+            memory_view,
+        ));
     }
 }
 
@@ -339,12 +411,17 @@ fn find_kaslr_linux_x86(table: &mut PageTableX86) -> PyResult<KaslrInfo> {
 }
 
 #[pymodule]
-fn gdb_pt_dump_rust_py_interface(_py: Python, m: &PyModule) -> PyResult<()> {
+fn pt_dump_py(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(parse_page_table_x86_32, m)?)?;
     m.add_function(wrap_pyfunction!(parse_page_table_x86_64, m)?)?;
     m.add_function(wrap_pyfunction!(parse_page_table_aarch64, m)?)?;
     // TODO: riscv64
-    m.add_function(wrap_pyfunction!(get_page_table_as_string, m)?)?;
+    m.add_function(wrap_pyfunction!(get_page_table_as_string_x86, m)?)?;
+    m.add_function(wrap_pyfunction!(get_page_table_as_string_aarch64, m)?)?;
+    m.add_function(wrap_pyfunction!(
+        parse_page_tabls_user_and_kernel_aarch64,
+        m
+    )?)?;
 
     m.add_function(wrap_pyfunction!(filter_page_table_x86, m)?)?;
     // TODO: aarch64

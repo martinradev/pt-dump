@@ -3,6 +3,9 @@ use std::collections::VecDeque;
 use crate::memory::memory::MemoryView;
 use crate::pt::common::{Error, PhysRange};
 
+use super::page_range::{GenericPage, GenericPageRange};
+use super::x86::PageAttributes;
+
 #[derive(Copy, Clone)]
 pub enum Granularity {
     Pt4k,
@@ -20,24 +23,31 @@ pub enum ArmFlavour {
 pub struct ArmContext {
     flavour: ArmFlavour,
     granularity: Granularity,
-    tcr: u64,
     virtual_address_space_size: u8,
+    top_bit: u8,
 }
 
 impl ArmContext {
     pub fn new(
         flavour: ArmFlavour,
         granularity: Granularity,
-        tcr: u64,
         virtual_address_space_size: u8,
+        top_bit: u8,
     ) -> Self {
         Self {
             flavour: flavour,
             granularity: granularity,
-            tcr: tcr,
             virtual_address_space_size: virtual_address_space_size,
+            top_bit: top_bit,
         }
     }
+}
+
+#[derive(Clone, PartialEq)]
+pub struct ArmPageAttributes {
+    pub xn: bool,
+    pub pxn: bool,
+    pub permission_bits: u8,
 }
 
 #[derive(Clone)]
@@ -45,41 +55,74 @@ pub struct ArmPageRange {
     pub va: u64,
     pub extent: u64,
     pub phys_ranges: Vec<PhysRange>,
-    pub xn: bool,
-    pub pxn: bool,
-    pub permission_bits: u8,
+    pub attr: ArmPageAttributes,
 }
 
-#[derive(Copy, Clone)]
+impl ArmPageRange {
+    pub fn is_user_readable(&self) -> bool {
+        self.attr.permission_bits == 0b11 || self.attr.permission_bits == 0b01
+    }
+
+    pub fn is_kernel_readable(&self) -> bool {
+        true
+    }
+
+    pub fn is_user_writeable(&self) -> bool {
+        self.attr.permission_bits == 0b01
+    }
+
+    pub fn is_kernel_writeable(&self) -> bool {
+        self.attr.permission_bits == 0b01 || self.attr.permission_bits == 0b00
+    }
+
+    pub fn is_user_executable(&self) -> bool {
+        !self.attr.xn
+    }
+
+    pub fn is_kernel_executable(&self) -> bool {
+        !self.attr.pxn
+    }
+
+    pub fn is_extendable_by(&self, va: u64, attr: &ArmPageAttributes) -> bool {
+        return self.get_va() + self.get_va_extent() == va && self.attr == *attr;
+    }
+
+    pub fn extend_by(&mut self, next_extent: u64, next_phys: u64) {
+        self.extent += next_extent;
+        let mut last = self.phys_ranges.last_mut().unwrap();
+        if last.phys_base + last.phys_extent == next_phys {
+            last.phys_extent += next_extent;
+        } else if last.phys_base <= next_phys
+            && (next_phys + next_extent) <= (last.phys_base + last.phys_extent)
+        {
+            // Don't do anything since the range is already included and the range is considered semantically the same.
+            return;
+        } else {
+            self.phys_ranges
+                .push(PhysRange::new(next_phys, next_extent))
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
 struct LevelRangeInfo {
     bit_start_incl: u8,
     bit_end_incl: u8,
     block_size: u64,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Clone, Debug)]
 struct LevelRanges {
-    level0: Option<LevelRangeInfo>, // This is None for 64K granularity
-    level1: LevelRangeInfo,
-    level2: LevelRangeInfo,
-    level3: LevelRangeInfo,
+    levels: Vec<LevelRangeInfo>,
 }
 
 impl LevelRanges {
-    fn get_level_info(self: &Self, index: u8) -> LevelRangeInfo {
-        match index {
-            0 => {
-                if let Some(level0) = self.level0 {
-                    return level0;
-                } else {
-                    unreachable!();
-                }
-            }
-            1 => self.level1,
-            2 => self.level2,
-            3 => self.level3,
-            _ => unreachable!(),
-        }
+    fn get_level_info(self: &Self, index: u8) -> &LevelRangeInfo {
+        &self.levels[index as usize]
+    }
+
+    fn get_num_levels(&self) -> usize {
+        self.levels.len()
     }
 }
 
@@ -87,76 +130,45 @@ impl Granularity {
     fn get_block_size(self) -> usize {
         match self {
             Granularity::Pt4k => 0x1000,
-            Granularity::Pt16k => 0x10000,
-            Granularity::Pt64k => 0x40000,
+            Granularity::Pt16k => 0x4000,
+            Granularity::Pt64k => 0x10000,
         }
     }
 
-    fn get_level_ranges(self) -> LevelRanges {
+    fn get_bit_start(self) -> u8 {
         match self {
-            Granularity::Pt4k => LevelRanges {
-                level0: Some(LevelRangeInfo {
-                    bit_start_incl: 39,
-                    bit_end_incl: 47,
-                    block_size: 512_u64 * 1024 * 1024 * 1024,
-                }),
-                level1: LevelRangeInfo {
-                    bit_start_incl: 30,
-                    bit_end_incl: 38,
-                    block_size: 1024_u64 * 1024 * 1024,
-                },
-                level2: LevelRangeInfo {
-                    bit_start_incl: 21,
-                    bit_end_incl: 29,
-                    block_size: 2_u64 * 1024 * 1024,
-                },
-                level3: LevelRangeInfo {
-                    bit_start_incl: 12,
-                    bit_end_incl: 20,
-                    block_size: 4096,
-                },
-            },
-            Granularity::Pt16k => LevelRanges {
-                level0: Some(LevelRangeInfo {
-                    bit_start_incl: 47,
-                    bit_end_incl: 47,
-                    block_size: 128_u64 * 1024 * 1024 * 1024 * 1024,
-                }),
-                level1: LevelRangeInfo {
-                    bit_start_incl: 36,
-                    bit_end_incl: 46,
-                    block_size: 64_u64 * 1024 * 1024 * 1024,
-                },
-                level2: LevelRangeInfo {
-                    bit_start_incl: 25,
-                    bit_end_incl: 35,
-                    block_size: 32_u64 * 1024 * 1024,
-                },
-                level3: LevelRangeInfo {
-                    bit_start_incl: 14,
-                    bit_end_incl: 24,
-                    block_size: 16 * 1024,
-                },
-            },
-            Granularity::Pt64k => LevelRanges {
-                level0: None,
-                level1: LevelRangeInfo {
-                    bit_start_incl: 42,
-                    bit_end_incl: 51,
-                    block_size: 4_u64 * 1024 * 1024 * 1024 * 1024,
-                },
-                level2: LevelRangeInfo {
-                    bit_start_incl: 29,
-                    bit_end_incl: 41,
-                    block_size: 512 * 1024 * 1024,
-                },
-                level3: LevelRangeInfo {
-                    bit_start_incl: 16,
-                    bit_end_incl: 28,
-                    block_size: 64 * 1024,
-                },
-            },
+            Granularity::Pt4k => 12u8,
+            Granularity::Pt16k => 14u8,
+            Granularity::Pt64k => 16u8,
         }
+    }
+
+    fn get_num_bits_per_level(self) -> u8 {
+        match self {
+            Granularity::Pt4k => 9u8,
+            Granularity::Pt16k => 11u8,
+            Granularity::Pt64k => 13u8,
+        }
+    }
+
+    fn get_level_ranges(self, address_space_size: u8) -> LevelRanges {
+        let start = self.get_bit_start();
+        let bits_per_level = self.get_num_bits_per_level();
+        let mut ranges = vec![];
+        let mut cur = start;
+        while cur < address_space_size {
+            let bit_start_incl = cur;
+            let bit_end_incl = std::cmp::min(cur + bits_per_level, address_space_size) - 1;
+            let block_size = 1u64 << bit_start_incl;
+            cur = bit_end_incl + 1u8;
+            ranges.push(LevelRangeInfo {
+                bit_start_incl: bit_start_incl,
+                bit_end_incl: bit_end_incl,
+                block_size: block_size,
+            });
+        }
+        ranges.reverse();
+        LevelRanges { levels: ranges }
     }
 }
 
@@ -169,34 +181,20 @@ struct TablePointerEntry {
     level: u8,
 }
 
-struct MappingPointerEntry {
-    va: u64,
-    extent: u64,
-    base_address: u64,
-    xn: bool,
-    pxn: bool,
-    permission_bits: u8,
-}
-
 fn parse_block_arm64(
     context: &ArmContext,
     memory: &mut dyn MemoryView,
     table: &TablePointerEntry,
     level_ranges: &LevelRanges,
-    mut tables: &mut VecDeque<TablePointerEntry>,
-    mut pages: &mut Vec<MappingPointerEntry>,
+    mut pages: &mut Vec<ArmPageRange>,
 ) -> Result<(), Error> {
-    let level_info = level_ranges.get_level_info(table.level);
     let block_size = context.granularity.get_block_size();
     let block = memory.read_block(table.base_address as usize, block_size)?;
+    let level_info = level_ranges.get_level_info(table.level);
 
     let mask_range = |(a_inclusive, b_inclusive): (u8, u8)| {
         let mask_to_zero = |a_inclusive: u8| (1_u64 << a_inclusive) - 1_u64;
         mask_to_zero(a_inclusive) ^ mask_to_zero(b_inclusive)
-    };
-
-    let extract_bits = |value: u64, a_inclusive: u8, b_inclusive: u8| {
-        value & (mask_range((a_inclusive, b_inclusive)) >> a_inclusive)
     };
 
     let extract_bits_no_shift = |value: u64, a_inclusive: u8, b_inclusive: u8| {
@@ -216,25 +214,33 @@ fn parse_block_arm64(
 
         let va_contribution = (block_index as u64) << level_info.bit_start_incl;
         let va = table.va | va_contribution;
-        let base_address = extract_bits_no_shift(
-            raw_entry,
-            level_ranges.level3.bit_start_incl,
-            level_ranges.level3.bit_end_incl,
-        );
+        let base_address = extract_bits_no_shift(raw_entry, 47, 12);
 
         // TODO: do we have to propagate permission bit from the parent table? Most likely yes
-        if (table_pointer && contiguous_bit) || !table_pointer {
+        if (table_pointer && contiguous_bit)
+            || !table_pointer
+            || (table.level + 1) as usize == level_ranges.get_num_levels()
+        {
             // this is a leaf page
             let permissions = ((raw_entry >> 6) & 0x2) as u8;
             let xn = has_bit(54) || table.xn;
             let pxn = has_bit(53) || table.pxn;
-            let entry = MappingPointerEntry {
-                va: va,
-                base_address: base_address,
+            let attr = ArmPageAttributes {
                 xn: xn,
                 pxn: pxn,
                 permission_bits: permissions,
+            };
+            if let Some(previous_page) = pages.last_mut() {
+                if previous_page.is_extendable_by(va, &attr) {
+                    previous_page.extend_by(level_info.block_size, base_address);
+                    continue;
+                }
+            }
+            let entry = ArmPageRange {
+                va: va,
                 extent: level_info.block_size,
+                phys_ranges: vec![PhysRange::new(base_address, level_info.block_size)],
+                attr: attr,
             };
             pages.push(entry);
         } else {
@@ -242,7 +248,8 @@ fn parse_block_arm64(
             let permissions = ((raw_entry >> 61) & 0x2) as u8;
             let xn = has_bit(60) | table.xn;
             let pxn = has_bit(59) | table.pxn;
-            TablePointerEntry {
+
+            let table = TablePointerEntry {
                 va: va,
                 base_address: base_address,
                 xn: xn,
@@ -250,6 +257,7 @@ fn parse_block_arm64(
                 permission_bits: permissions,
                 level: table.level + 1,
             };
+            parse_block_arm64(context, memory, &table, level_ranges, pages);
         }
     }
     Ok(())
@@ -260,9 +268,11 @@ fn parse_arm64(
     memory: &mut dyn MemoryView,
     pa: u64,
 ) -> Result<Vec<ArmPageRange>, Error> {
-    let ranges = context.granularity.get_level_ranges();
+    let ranges = context
+        .granularity
+        .get_level_ranges(context.virtual_address_space_size);
     let root = TablePointerEntry {
-        va: 0,
+        va: !(((context.top_bit as u64) << context.virtual_address_space_size) - 1u64),
         base_address: pa,
         xn: false,
         pxn: false,
@@ -270,41 +280,10 @@ fn parse_arm64(
         level: 0,
     };
     let mut page_entries = Vec::new();
-    let mut tables = VecDeque::new();
-    tables.push_back(root);
 
-    while !tables.is_empty() {
-        if let Some(head) = tables.pop_front() {
-            parse_block_arm64(
-                &context,
-                memory,
-                &head,
-                &ranges,
-                &mut tables,
-                &mut page_entries,
-            )?;
-        } else {
-            // There should also be an entry unless code is somehow broken.
-            unreachable!();
-        }
-    }
+    parse_block_arm64(&context, memory, &root, &ranges, &mut page_entries)?;
 
-    let mut arm_page_entries = Vec::with_capacity(page_entries.len());
-    for mapping_entry in &page_entries {
-        arm_page_entries.push(ArmPageRange {
-            va: mapping_entry.va,
-            extent: mapping_entry.extent,
-            phys_ranges: vec![PhysRange::new(
-                mapping_entry.base_address,
-                mapping_entry.extent,
-            )],
-            xn: mapping_entry.xn,
-            pxn: mapping_entry.pxn,
-            permission_bits: mapping_entry.permission_bits,
-        });
-    }
-
-    Ok(arm_page_entries)
+    Ok(page_entries)
 }
 
 pub fn collect_pages(
