@@ -17,7 +17,7 @@ use qemu_memory::QemuMemoryView;
 mod qemu_memory;
 
 #[derive(FromPyObject)]
-struct PyFilter_X86 {
+struct PyFilter_Common {
     writeable: Option<bool>,
     executable: Option<bool>,
     user_accessible: Option<bool>,
@@ -257,7 +257,7 @@ fn parse_page_tabls_user_and_kernel_aarch64(
 
 #[pyfunction]
 fn filter_page_table_x86(table: &mut PageTableX86, filter: &PyAny) -> PyResult<PageTableX86> {
-    let filter: PyFilter_X86 = filter.extract()?;
+    let filter: PyFilter_Common = filter.extract()?;
     let mut pt_filter = PageRangeFilterX86::new();
     if let Some(e) = filter.executable {
         pt_filter.set_executable(e);
@@ -281,6 +281,36 @@ fn filter_page_table_x86(table: &mut PageTableX86, filter: &PyAny) -> PyResult<P
     let memory_view = table.get_memory_view().clone();
     Ok(PageTableX86::new(
         page_range_filter::filter_x86_ranges(table.get_ranges(), &pt_filter),
+        memory_view,
+    ))
+}
+
+#[pyfunction]
+fn filter_page_table_aarch64(table: &mut PageTableAarch64, filter: &PyAny) -> PyResult<PageTableAarch64> {
+    let filter: PyFilter_Common = filter.extract()?;
+    let mut pt_filter = PageRangeFilterX86::new();
+    if let Some(e) = filter.executable {
+        pt_filter.set_executable(e);
+    }
+    if let Some(w) = filter.writeable {
+        pt_filter.set_writeable(w);
+    }
+    if let Some(has_address) = filter.has_address {
+        pt_filter.set_has_address(has_address);
+    }
+    if let Some(su) = filter.only_superuser_accessible {
+        pt_filter.set_superuser_accessible(su);
+    }
+    if let Some(u) = filter.user_accessible {
+        pt_filter.set_user_accessible(u);
+    }
+    if let Some(r) = filter.va_range {
+        pt_filter.set_va_range(r.0, r.1);
+    }
+
+    let memory_view = table.get_memory_view().clone();
+    Ok(PageTableAarch64::new(
+        page_range_filter::filter_aarch64_ranges(table.get_ranges(), &pt_filter),
         memory_view,
     ))
 }
@@ -424,7 +454,7 @@ fn pt_dump_py(_py: Python, m: &PyModule) -> PyResult<()> {
     )?)?;
 
     m.add_function(wrap_pyfunction!(filter_page_table_x86, m)?)?;
-    // TODO: aarch64
+    m.add_function(wrap_pyfunction!(filter_page_table_aarch64, m)?)?;
     // TODO: riscv64
 
     m.add_function(wrap_pyfunction!(search_memory_x86, m)?)?;

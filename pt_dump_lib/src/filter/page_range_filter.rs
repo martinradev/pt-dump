@@ -1,4 +1,6 @@
+use crate::pt::page_range::{GenericPage, GenericPageRange};
 use crate::pt::x86::X86PageRange;
+use crate::pt::arm::ArmPageRange;
 
 pub struct PageRangeFilterX86 {
     writeable: Option<bool>,
@@ -107,6 +109,70 @@ pub fn filter_x86_ranges(
         }
         if let Some(s_only) = s_only_opt {
             ok &= s_only == !attr.user;
+        }
+        if ok {
+            filtered_ranges.push(range.clone());
+        }
+    }
+    filtered_ranges
+}
+
+pub fn filter_aarch64_ranges(
+    ranges: &Vec<ArmPageRange>,
+    filter: &PageRangeFilterX86,
+) -> Vec<ArmPageRange> {
+    let mut filtered_ranges = vec![];
+    let w_opt = filter.get_writeable();
+    let x_opt = filter.get_executable();
+    let u_opt = filter.get_user_accessible();
+    let s_only_opt = filter.get_only_superuser_accessible();
+    let has_addr_opt = filter.get_has_address();
+    let va_range_opt = filter.get_va_range();
+    let (va_begin, va_end) = if let Some(va_range) = va_range_opt {
+        (va_range.0.unwrap_or(0_u64), va_range.1.unwrap_or(u64::MAX))
+    } else {
+        (0_u64, u64::MAX)
+    };
+
+    // TODO: find b,e indices using binary search, this can be abstracted.
+    for range in ranges {
+        let mut ok = true;
+        ok &= va_begin < range.get_va();
+        ok &= va_end > range.get_va();
+        if let Some(has_addr) = has_addr_opt {
+            ok &= has_addr >= range.get_va() && has_addr < range.get_va() + range.get_va_extent()
+        }
+        if let Some(w) = w_opt {
+            ok &= (w == range.is_user_writeable()) || (w == range.is_kernel_writeable());
+            if let Some(u) = u_opt {
+                ok &= u == range.is_user_writeable();
+            }
+            if let Some(s) = s_only_opt {
+                ok &= s == range.is_kernel_writeable();
+            }
+        } else {
+            if let Some(u) = u_opt {
+                ok &= (u == range.is_user_writeable()) || (u == range.is_user_readable()) || (u == range.is_user_executable());
+            }
+            if let Some(s) = s_only_opt {
+                ok &= (s == range.is_kernel_writeable()) || (s == range.is_kernel_readable()) || (s == range.is_kernel_executable());
+            }
+        }
+        if let Some(x) = x_opt {
+            ok &= (x == range.is_user_executable()) || (x == range.is_kernel_executable());
+            if let Some(u) = u_opt {
+                ok &= u == range.is_user_executable();
+            }
+            if let Some(s) = s_only_opt {
+                ok &= s == range.is_kernel_executable();
+            }
+        } else {
+            if let Some(u) = u_opt {
+                ok &= (u == range.is_user_writeable()) || (u == range.is_user_readable()) || (u == range.is_user_executable());
+            }
+            if let Some(s) = s_only_opt {
+                ok &= (s == range.is_kernel_writeable()) || (s == range.is_kernel_readable()) || (s == range.is_kernel_executable());
+            }
         }
         if ok {
             filtered_ranges.push(range.clone());
