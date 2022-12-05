@@ -1,15 +1,12 @@
-use std::sync::Arc;
-
 use pt_dump_lib::filter::page_range_filter;
 use pt_dump_lib::filter::page_range_filter::PageRangeFilterX86;
-use pt_dump_lib::memory::memory::MemoryView;
 use pt_dump_lib::print::printer::{Aarch64Writer, Printer, X86Writer};
 use pt_dump_lib::pt::arm;
 use pt_dump_lib::pt::arm::ArmPageRange;
 use pt_dump_lib::pt::page_range::*;
 use pt_dump_lib::pt::x86::X86PageRange;
 use pt_dump_lib::pt::*;
-use pt_dump_lib::search::bytes_search::{self, SearchResult};
+use pt_dump_lib::search::bytes_search::{self};
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyList, PyTuple};
@@ -17,7 +14,7 @@ use qemu_memory::QemuMemoryView;
 mod qemu_memory;
 
 #[derive(FromPyObject)]
-struct PyFilter_Common {
+struct PyFilterCommon {
     writeable: Option<bool>,
     executable: Option<bool>,
     user_accessible: Option<bool>,
@@ -101,7 +98,7 @@ fn collect_ram_ranges(phys_ranges: &PyList) -> Result<Vec<qemu_memory::RamRange>
     let mut phys_ranges_vec = vec![];
     for u in phys_ranges {
         let tuple = match u.downcast::<PyTuple>() {
-            Err(e) => return Err(PyTypeError::new_err("todo")),
+            Err(err) => return Err(PyTypeError::new_err(format!("Downcast error: {:?}", err))),
             Ok(tuple) => tuple,
         };
         if tuple.len() != 3 {
@@ -124,7 +121,7 @@ fn create_memory_view(fd: i32, phys_ranges: &PyList) -> Result<QemuMemoryView, P
     let memory_view = match qemu_memory::QemuMemoryView::new(fd, &ram_ranges, true) {
         Err(err) => {
             return Err(pyo3::exceptions::PyIOError::new_err(
-                "Couldn't open QEMU mem fd",
+                format!("Couldn't open QEMU mem fd: {:?}", err),
             ))
         }
         Ok(res) => res,
@@ -257,7 +254,7 @@ fn parse_page_tabls_user_and_kernel_aarch64(
 
 #[pyfunction]
 fn filter_page_table_x86(table: &mut PageTableX86, filter: &PyAny) -> PyResult<PageTableX86> {
-    let filter: PyFilter_Common = filter.extract()?;
+    let filter: PyFilterCommon = filter.extract()?;
     let mut pt_filter = PageRangeFilterX86::new();
     if let Some(e) = filter.executable {
         pt_filter.set_executable(e);
@@ -287,7 +284,7 @@ fn filter_page_table_x86(table: &mut PageTableX86, filter: &PyAny) -> PyResult<P
 
 #[pyfunction]
 fn filter_page_table_aarch64(table: &mut PageTableAarch64, filter: &PyAny) -> PyResult<PageTableAarch64> {
-    let filter: PyFilter_Common = filter.extract()?;
+    let filter: PyFilterCommon = filter.extract()?;
     let mut pt_filter = PageRangeFilterX86::new();
     if let Some(e) = filter.executable {
         pt_filter.set_executable(e);

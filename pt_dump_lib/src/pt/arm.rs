@@ -1,10 +1,6 @@
-use std::collections::VecDeque;
-
 use crate::memory::memory::MemoryView;
 use crate::pt::common::{Error, PhysRange};
-
 use super::page_range::{GenericPage, GenericPageRange};
-use super::x86::PageAttributes;
 
 #[derive(Copy, Clone)]
 pub enum Granularity {
@@ -107,7 +103,6 @@ impl ArmPageRange {
 #[derive(Copy, Clone, Debug)]
 struct LevelRangeInfo {
     bit_start_incl: u8,
-    bit_end_incl: u8,
     block_size: u64,
 }
 
@@ -163,7 +158,6 @@ impl Granularity {
             cur = bit_end_incl + 1u8;
             ranges.push(LevelRangeInfo {
                 bit_start_incl: bit_start_incl,
-                bit_end_incl: bit_end_incl,
                 block_size: block_size,
             });
         }
@@ -186,7 +180,7 @@ fn parse_block_arm64(
     memory: &mut dyn MemoryView,
     table: &TablePointerEntry,
     level_ranges: &LevelRanges,
-    mut pages: &mut Vec<ArmPageRange>,
+    pages: &mut Vec<ArmPageRange>,
 ) -> Result<(), Error> {
     let block_size = context.granularity.get_block_size();
     let block = memory.read_block(table.base_address as usize, block_size)?;
@@ -257,7 +251,7 @@ fn parse_block_arm64(
                 permission_bits: permissions,
                 level: table.level + 1,
             };
-            parse_block_arm64(context, memory, &table, level_ranges, pages);
+            parse_block_arm64(context, memory, &table, level_ranges, pages)?;
         }
     }
     Ok(())

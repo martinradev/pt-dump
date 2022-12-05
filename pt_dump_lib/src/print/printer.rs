@@ -29,7 +29,6 @@ pub struct X86Writer {
     pub address_column_length: u8,
     pub length_column_length: u8,
     pub permissions_column_length: u8,
-    clear_color: String,
     result: String,
 }
 
@@ -59,7 +58,6 @@ impl X86Writer {
             address_column_length: 18,
             length_column_length: 12,
             permissions_column_length: 18,
-            clear_color: " ".on_black().to_string(),
             result: String::new(),
         };
         let mut header = format!(
@@ -94,7 +92,6 @@ pub struct Aarch64Writer {
     pub address_column_length: u8,
     pub length_column_length: u8,
     pub permissions_column_length: u8,
-    clear_color: String,
     result: String,
 }
 
@@ -104,7 +101,6 @@ impl Aarch64Writer {
             address_column_length: 18,
             length_column_length: 12,
             permissions_column_length: 18,
-            clear_color: " ".on_black().to_string(),
             result: String::new(),
         };
         let mut header = format!(

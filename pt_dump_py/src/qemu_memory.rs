@@ -35,7 +35,7 @@ impl QemuMemoryView {
     ) -> Result<Self, Error> {
         let new_owned_fd = match unsafe { nc::dup(mem_fd) } {
             Ok(new_fd) => new_fd,
-            Err(err) => return Err(Error::ResourceError),
+            Err(_) => return Err(Error::ResourceError),
         };
         Ok(Self {
             mem_fd: new_owned_fd,
@@ -151,7 +151,7 @@ impl MemoryView for QemuMemoryView {
                 let cur_pos = gpa_start - gpa;
 
                 // Ignore error.
-                let result = read_inline_block_from_fd(
+                let _ = read_inline_block_from_fd(
                     self.mem_fd,
                     va_start,
                     max_to_read,
