@@ -64,7 +64,6 @@ fn test_pt_x86_multiple_pages() {
     let cr3 = 0u64;
     let result =
         x86::collect_pages(x86::X86Flavour::X86, &mut memory_view, cr3, false, false).unwrap();
-    println!("{:?}", result);
     compare_page_vectors(
         &vec![
             create_page(false, false, false, 2 * 4 * 1024 * 1024, 0x2000, 0x1000),
