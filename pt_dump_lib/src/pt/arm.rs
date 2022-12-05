@@ -222,7 +222,7 @@ fn parse_block_arm64(
             || (table.level + 1) as usize == level_ranges.get_num_levels()
         {
             // this is a leaf page
-            let permissions = ((raw_entry >> 6) & 0x2) as u8;
+            let permissions = ((raw_entry >> 6) & 0x3) as u8;
             let xn = has_bit(54) || table.xn;
             let pxn = has_bit(53) || table.pxn;
             let attr = ArmPageAttributes {
@@ -245,7 +245,7 @@ fn parse_block_arm64(
             pages.push(entry);
         } else {
             // this is table
-            let permissions = ((raw_entry >> 61) & 0x2) as u8;
+            let permissions = ((raw_entry >> 61) & 0x3) as u8;
             let xn = has_bit(60) | table.xn;
             let pxn = has_bit(59) | table.pxn;
 
